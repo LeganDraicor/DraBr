@@ -1,15 +1,4 @@
-import { GRAVITY, ENEMY_SPEED, FLIP_DURATION } from './main.js';
 import { Particle } from './particle.js';
-
-let enemies = [];
-let particles = [];
-let platforms = [];
-
-export function setEnemyDependencies(enemyArray, particleArray, platformArray) {
-    enemies = enemyArray;
-    particles = particleArray;
-    platforms = platformArray;
-}
 
 class Enemy {
     constructor(x, y, width, height, sprite) {
@@ -24,6 +13,7 @@ class Enemy {
         this.flipTimer = 0;
         this.onGround = false;
         this.hitAnimationTimer = 0;
+        this.damage = 10;
     }
 
     draw(ctx) {
@@ -44,9 +34,9 @@ class Enemy {
         ctx.restore();
     }
 
-    update(spawnPoints, GAME_WIDTH) {
+    update(platforms, spawnPoints, GAME_WIDTH, GRAVITY) {
+        const FLIP_DURATION = 5000;
         if (this.hitAnimationTimer > 0) this.hitAnimationTimer -= 1000 / 60;
-
         if (this.isFlipped) {
             this.flipTimer -= 1000 / 60;
             if (this.flipTimer <= 0) {
@@ -54,18 +44,15 @@ class Enemy {
                 this.y -= 5;
             }
         }
-
         if (this.x + this.width < 0 || this.x > GAME_WIDTH) {
             const spawnPoint = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
             this.x = spawnPoint.x;
             this.y = spawnPoint.y;
             this.vy = 0;
         }
-
         this.vy += GRAVITY;
         this.y += this.vy;
         this.onGround = false;
-
         platforms.forEach(p => {
             if (this.x < p.x + p.width && this.x + this.width > p.x && this.y + this.height >= p.y && this.y + this.height <= p.y + p.height + 10 && this.vy >= 0) {
                 this.y = p.y - this.height;
@@ -79,6 +66,7 @@ class Enemy {
     }
 
     flip() {
+        const FLIP_DURATION = 5000;
         if (!this.isFlipped) {
             this.isFlipped = true;
             this.flipTimer = FLIP_DURATION;
@@ -88,35 +76,38 @@ class Enemy {
 }
 
 export class BasicEnemy extends Enemy {
-    constructor(x, y) {
+    constructor(x, y, ENEMY_SPEED) {
         super(x, y, 36, 36, '👾');
         this.vx = (Math.random() < 0.5 ? 1 : -1) * ENEMY_SPEED;
+        this.damage = 100;
     }
-    update(spawnPoints, GAME_WIDTH) {
-        super.update(spawnPoints, GAME_WIDTH);
+    update(platforms, spawnPoints, GAME_WIDTH, GRAVITY) {
+        super.update(platforms, spawnPoints, GAME_WIDTH, GRAVITY);
         if (!this.isFlipped) this.x += this.vx;
     }
 }
 
 export class FastEnemy extends Enemy {
-    constructor(x, y) {
+    constructor(x, y, ENEMY_SPEED) {
         super(x, y, 36, 36, '👻');
         this.vx = (Math.random() < 0.5 ? 1 : -1) * ENEMY_SPEED * 1.8;
+        this.damage = 75;
     }
-    update(spawnPoints, GAME_WIDTH) {
-        super.update(spawnPoints, GAME_WIDTH);
+    update(platforms, spawnPoints, GAME_WIDTH, GRAVITY) {
+        super.update(platforms, spawnPoints, GAME_WIDTH, GRAVITY);
         if (!this.isFlipped) this.x += this.vx;
     }
 }
 
 export class JumpingEnemy extends Enemy {
-    constructor(x, y) {
+    constructor(x, y, ENEMY_SPEED) {
         super(x, y, 36, 36, '👽');
         this.vx = (Math.random() < 0.5 ? 1 : -1) * ENEMY_SPEED * 0.8;
         this.jumpCooldown = Math.floor(Math.random() * 121) + 80;
+        this.damage = 125;
     }
-    update(spawnPoints, GAME_WIDTH) {
-        super.update(spawnPoints, GAME_WIDTH);
+    update(platforms, spawnPoints, GAME_WIDTH, GRAVITY) {
+        super.update(platforms, spawnPoints, GAME_WIDTH, GRAVITY);
         this.jumpCooldown--;
         if (this.onGround && this.jumpCooldown <= 0 && !this.isFlipped) {
             this.vy = -8;
@@ -128,16 +119,19 @@ export class JumpingEnemy extends Enemy {
 }
 
 export class IceBomberEnemy extends Enemy {
-    constructor(x, y, platform) {
+    constructor(x, y, platform, enemies, particles) {
         super(x, y, 36, 36, '💣');
         this.vx = 0;
         this.timer = Math.floor(Math.random() * 2001) + 3000;
         this.platform = platform;
         this.y = platform.y - this.height;
         this.x = platform.x + (platform.width / 2) - (this.width / 2);
+        this.damage = 0;
+        this.enemiesRef = enemies; // Reference to the main enemies array
+        this.particlesRef = particles; // Reference to the main particles array
     }
-    update(spawnPoints, GAME_WIDTH) {
-        super.update(spawnPoints, GAME_WIDTH);
+    update(platforms, spawnPoints, GAME_WIDTH, GRAVITY) {
+        super.update(platforms, spawnPoints, GAME_WIDTH, GRAVITY);
         this.timer -= 1000 / 60;
         if (this.timer <= 0 && !this.isFlipped) {
             this.explode();
@@ -147,9 +141,9 @@ export class IceBomberEnemy extends Enemy {
         }
     }
     explode() {
-        const index = enemies.indexOf(this);
-        if (index > -1) enemies.splice(index, 1);
-        for (let i = 0; i < 40; i++) particles.push(new Particle(this.x, this.y, this.sprite));
+        const index = this.enemiesRef.indexOf(this);
+        if (index > -1) this.enemiesRef.splice(index, 1);
+        for (let i = 0; i < 40; i++) this.particlesRef.push(new Particle(this.x, this.y, this.sprite));
         if (this.platform) this.platform.freeze();
     }
     flip() {
@@ -158,10 +152,11 @@ export class IceBomberEnemy extends Enemy {
 }
 
 export class ToughEnemy extends Enemy {
-    constructor(x, y) {
+    constructor(x, y, ENEMY_SPEED) {
         super(x, y, 40, 40, '👹');
         this.vx = (Math.random() < 0.5 ? 1 : -1) * ENEMY_SPEED * 0.7;
         this.hitsLeft = 2;
+        this.damage = 200;
     }
     flip() {
         if (this.isFlipped) return;
@@ -174,8 +169,9 @@ export class ToughEnemy extends Enemy {
             this.sprite = '👺';
         }
     }
-    update(spawnPoints, GAME_WIDTH) {
-        super.update(spawnPoints, GAME_WIDTH);
+    update(platforms, spawnPoints, GAME_WIDTH, GRAVITY) {
+        super.update(platforms, spawnPoints, GAME_WIDTH, GRAVITY);
         if (!this.isFlipped) this.x += this.vx;
     }
 }
+
