@@ -1,5 +1,3 @@
-import { GRAVITY } from './main.js';
-
 export class Particle {
     constructor(x, y, sprite) {
         this.x = x;
@@ -24,7 +22,7 @@ export class Particle {
         ctx.globalAlpha = 1.0;
     }
 
-    update() {
+    update(GRAVITY) {
         this.x += this.vx;
         this.y += this.vy;
         this.vy += GRAVITY * 0.1;
@@ -32,3 +30,4 @@ export class Particle {
         if (this.isEmoji && this.size > 0.2) this.size -= 0.2;
     }
 }
+
